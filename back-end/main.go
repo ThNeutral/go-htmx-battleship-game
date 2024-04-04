@@ -17,9 +17,13 @@ const (
 	placed = 1
 	missed = 2
 	hit    = 3
+
+	changeFieldType  = "change_field"
+	introMessageType = "intro_message"
 )
 
 type Fields struct {
+	Type        string   `json:"type"`
 	FirstField  [100]int `json:"first_field"`
 	SecondField [100]int `json:"second_field"`
 }
@@ -28,6 +32,11 @@ type IncomingMessage struct {
 	From             int   `json:"from"`
 	ChangeTo         int   `json:"change_to"`
 	ChangedPositions []int `json:"changed_positions"`
+}
+
+type IntroMessage struct {
+	Type                     string `json:"type"`
+	NumberOfConnectedPlayers int    `json:"number_of_connected_players"`
 }
 
 var currentTurn = 1
@@ -50,6 +59,26 @@ func getNextPlayerID() int {
 	}
 }
 
+func changeCurrentTurn() {
+	if currentTurn == 1 {
+		currentTurn = 2
+	} else {
+		currentTurn = 1
+	}
+}
+
+func getIntroMessageToSend() string {
+	var im IntroMessage
+	im.Type = introMessageType
+	im.NumberOfConnectedPlayers = len(connections)
+	json, err := json.Marshal(im)
+	if err != nil {
+		log.Println("Failed to marshal: ", err.Error())
+		return ""
+	}
+	return string(json)
+}
+
 func handleConnect(w http.ResponseWriter, r *http.Request) {
 	if len(connections) >= 2 {
 		log.Println("Lobby is already full")
@@ -65,7 +94,13 @@ func handleConnect(w http.ResponseWriter, r *http.Request) {
 
 	defer func() { conn.Close(); delete(connections, conn) }()
 
-	connections[conn] = getNextPlayerID()
+	id := getNextPlayerID()
+	connections[conn] = id
+
+	mess := []byte(getIntroMessageToSend())
+	for c, _ := range connections {
+		c.WriteMessage(websocket.TextMessage, mess)
+	}
 
 	for {
 		_, message, err := conn.ReadMessage()
@@ -75,8 +110,9 @@ func handleConnect(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		var incMess *IncomingMessage
-		err = json.Unmarshal(message, incMess)
+		var incMess IncomingMessage
+		err = json.Unmarshal(message, &incMess)
+		incMess.From = connections[conn]
 		if err != nil {
 			log.Println("Failed to unmarshal: ", err.Error())
 			return
@@ -86,7 +122,7 @@ func handleConnect(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		channel <- incMess
+		channel <- &incMess
 
 		log.Println("Recieved message: ", string(message))
 	}
@@ -121,6 +157,8 @@ func handleIncomingMessages() {
 			}
 		}
 		var f1, f2 Fields
+		f1.Type = changeFieldType
+		f2.Type = changeFieldType
 
 		for conn, playerID := range connections {
 			if playerID == 1 {
