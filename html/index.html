@@ -1,0 +1,64 @@
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script
+      src="https://unpkg.com/htmx.org@2.0.3"
+      integrity="sha384-0895/pl2MU10Hqc6jd4RvrthNlDiE9U1tWmX7WRESftEDRosgxNsQG/Ze9YMRzHq"
+      crossorigin="anonymous"
+    ></script>
+    <script src="https://unpkg.com/htmx.org@1.9.12/dist/ext/ws.js"></script>
+    <script>
+        htmx.logAll();
+        var ws;
+        document.addEventListener("htmx:wsOpen", (event) => {
+            ws = event.detail.event.target;
+        })
+        document.addEventListener("htmx:trigger", (event) => {
+            if (event.target.className == "cell") {
+                ws.send(JSON.stringify({ id: event.target.id, key: " "}))
+            }
+        })
+    </script>
+    <title>Battleship</title>
+    <style>
+      .page {
+        display: flex;
+      }
+      .grid {
+        min-width: 500px;
+        min-height: 500px;
+      }
+      .row {
+        margin: 5px;
+      }
+      .cell {
+        width: 35px;
+        height: 35px;
+      }
+    </style>
+  </head>
+  <body hx-ext="ws" ws-connect="/ws" ws-replace-url="true">
+    <div class="page">
+      <div class="grid">
+        {{ range $row, $d1 := .First }}
+        <div class="row">
+          {{ range $col, $d := $d1 }}
+          <button class="cell" id="f-{{ $row }}-{{ $col }}" hx-swap-oob="true" hx-trigger="click" ws-send hx-ws="send:{'id': 'id=f-{{ $row }}-{{ $col }}', 'key': '{{ $d }}'}">{{ $d }}</button>
+          {{ end }}
+        </div>
+        {{ end }}
+      </div>
+      <div class="grid">
+        {{ range $row, $d1 := .Second }}
+        <div class="row">
+          {{ range $col, $d := $d1 }}
+          <button class="cell" id="s-{{ $row }}-{{ $col }}" hx-swap-oob="true" hx-trigger="click" ws-send hx-ws="send:{'id': 'id=s-{{ $row }}-{{ $col }}', 'key': '{{ $d }}'}">{{ $d }}</button>
+          {{ end }}
+        </div>
+        {{ end }}
+      </div>
+    </div>
+    <p id="error" hx-swap-oob="true"></p>
+  </body>
+</html>
